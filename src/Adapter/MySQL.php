@@ -117,7 +117,10 @@ class MySQL extends AbstractAdapter
         // Add join conditions if any
         foreach ($joinConditions as $joinAliasInfos) {
             foreach ($joinAliasInfos as $tableAlias => $joinInfos) {
-                $query .= ' ' . $joinInfos['joinType'] . ' ' . _DB_PREFIX_ . $joinInfos['tableName'] . ' ' .
+                $tableExpression = isset($joinInfos['rawTable'])
+                    ? $joinInfos['rawTable']
+                    : _DB_PREFIX_ . $joinInfos['tableName'];
+                $query .= ' ' . $joinInfos['joinType'] . ' ' . $tableExpression . ' ' .
                        $tableAlias . ' ON ' . $joinInfos['joinCondition'];
             }
         }
@@ -184,6 +187,7 @@ class MySQL extends AbstractAdapter
             ],
             'id_feature' => [
                 'tableName' => 'feature_product',
+                'rawTable' => $this->getEffectiveFeatureProductSubquery(),
                 'tableAlias' => 'fp',
                 'joinCondition' => '(p.id_product = fp.id_product)',
                 'joinType' => self::INNER_JOIN,
@@ -204,6 +208,7 @@ class MySQL extends AbstractAdapter
             ],
             'id_feature_value' => [
                 'tableName' => 'feature_product',
+                'rawTable' => $this->getEffectiveFeatureProductSubquery(),
                 'tableAlias' => 'fp',
                 'joinCondition' => '(p.id_product = fp.id_product)',
                 'joinType' => self::LEFT_JOIN,
@@ -337,6 +342,34 @@ class MySQL extends AbstractAdapter
         ];
 
         return $filterToTableMapping;
+    }
+
+    /**
+     * Derived table merging product-level features (ps_feature_product) with
+     * combination-level features (ps_feature_product_attribute, added by the
+     * creafeatures module). Combination values override product values for the
+     * same feature.
+     *
+     * Resulting columns: id_product, id_feature, id_feature_value, id_product_attribute.
+     * id_product_attribute is NULL when the value comes from the product level.
+     *
+     * @return string SQL subquery wrapped in parentheses, suitable for use as a JOIN source
+     */
+    protected function getEffectiveFeatureProductSubquery()
+    {
+        $prefix = _DB_PREFIX_;
+
+        return '(SELECT pa.id_product, fpa.id_feature, fpa.id_feature_value, pa.id_product_attribute'
+            . ' FROM `' . $prefix . 'feature_product_attribute` fpa'
+            . ' INNER JOIN `' . $prefix . 'product_attribute` pa ON pa.id_product_attribute = fpa.id_product_attribute'
+            . ' UNION'
+            . ' SELECT fp_src.id_product, fp_src.id_feature, fp_src.id_feature_value, NULL AS id_product_attribute'
+            . ' FROM `' . $prefix . 'feature_product` fp_src'
+            . ' WHERE NOT EXISTS ('
+            . '   SELECT 1 FROM `' . $prefix . 'feature_product_attribute` fpa2'
+            . '   INNER JOIN `' . $prefix . 'product_attribute` pa2 ON pa2.id_product_attribute = fpa2.id_product_attribute'
+            . '   WHERE pa2.id_product = fp_src.id_product AND fpa2.id_feature = fp_src.id_feature'
+            . ' ))';
     }
 
     /**
@@ -724,6 +757,9 @@ class MySQL extends AbstractAdapter
             'joinCondition' => $joinMapping['joinCondition'],
             'joinType' => $joinMapping['joinType'],
         ];
+        if (isset($joinMapping['rawTable'])) {
+            $joinInfos[$joinMapping['tableAlias']]['rawTable'] = $joinMapping['rawTable'];
+        }
 
         $joinList->set($joinMapping['tableAlias'] . '_' . $joinMapping['tableName'], $joinInfos);
     }

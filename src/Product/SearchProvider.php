@@ -191,6 +191,11 @@ class SearchProvider implements FacetsRendererInterface, ProductSearchProviderIn
             $facetedSearchFilters
         );
 
+        $this->injectFeatureMatchedCombinations(
+            $productsAndCount['products'],
+            $facetedSearchFilters
+        );
+
         $result
             ->setProducts($productsAndCount['products'])
             ->setTotalProductsCount($productsAndCount['count'])
@@ -620,5 +625,75 @@ class SearchProvider implements FacetsRendererInterface, ProductSearchProviderIn
     private function shouldPassCombinationIds(array $facetedSearchFilters)
     {
         return !empty($facetedSearchFilters['id_attribute_group']);
+    }
+
+    /**
+     * When a feature filter is active and the matching value lives on a combination
+     * (via creafeatures' feature_product_attribute table), preselect that combination
+     * on the listing card by injecting id_product_attribute into each product row.
+     *
+     * Does not overwrite id_product_attribute when it has already been set
+     * (e.g. by an attribute-group filter).
+     *
+     * @param array &$products
+     * @param array $facetedSearchFilters
+     */
+    protected function injectFeatureMatchedCombinations(array &$products, array $facetedSearchFilters)
+    {
+        if (empty($facetedSearchFilters['id_feature']) || empty($products)) {
+            return;
+        }
+
+        $featureValueIds = [];
+        foreach ($facetedSearchFilters['id_feature'] as $values) {
+            foreach ((array) $values as $v) {
+                $featureValueIds[] = (int) $v;
+            }
+        }
+        $featureValueIds = array_values(array_unique(array_filter($featureValueIds)));
+        if (empty($featureValueIds)) {
+            return;
+        }
+
+        $productIds = [];
+        foreach ($products as $product) {
+            if (!empty($product['id_product'])) {
+                $productIds[] = (int) $product['id_product'];
+            }
+        }
+        if (empty($productIds)) {
+            return;
+        }
+
+        // We only need combination-level matches here: a product whose only match comes
+        // from the product-level feature has no combination to preselect anyway.
+        // Querying feature_product_attribute directly is far simpler than the UNION
+        // used to drive the filter itself.
+        $rows = \Db::getInstance()->executeS(
+            'SELECT pa.id_product, MIN(fpa.id_product_attribute) AS id_product_attribute'
+            . ' FROM `' . _DB_PREFIX_ . 'feature_product_attribute` fpa'
+            . ' INNER JOIN `' . _DB_PREFIX_ . 'product_attribute` pa'
+            . '     ON pa.id_product_attribute = fpa.id_product_attribute'
+            . ' WHERE pa.id_product IN (' . implode(',', array_map('intval', $productIds)) . ')'
+            . '   AND fpa.id_feature_value IN (' . implode(',', array_map('intval', $featureValueIds)) . ')'
+            . ' GROUP BY pa.id_product'
+        );
+
+        if (empty($rows)) {
+            return;
+        }
+
+        $matchMap = [];
+        foreach ($rows as $row) {
+            $matchMap[(int) $row['id_product']] = (int) $row['id_product_attribute'];
+        }
+
+        foreach ($products as &$product) {
+            $idProduct = isset($product['id_product']) ? (int) $product['id_product'] : 0;
+            if ($idProduct > 0 && !empty($matchMap[$idProduct]) && empty($product['id_product_attribute'])) {
+                $product['id_product_attribute'] = $matchMap[$idProduct];
+            }
+        }
+        unset($product);
     }
 }

@@ -684,14 +684,42 @@ class SearchProvider implements FacetsRendererInterface, ProductSearchProviderIn
         }
 
         $matchMap = [];
+        $combinationIds = [];
         foreach ($rows as $row) {
-            $matchMap[(int) $row['id_product']] = (int) $row['id_product_attribute'];
+            $idPa = (int) $row['id_product_attribute'];
+            $matchMap[(int) $row['id_product']] = $idPa;
+            $combinationIds[] = $idPa;
+        }
+
+        // Fetch combination cover image so the listing card shows the combination's
+        // image instead of the product's default cover (cf. Product::getProductProperties
+        // line ~5653 in PS core: cover_image_id fallback uses Product::getCover()).
+        $imageMap = [];
+        if (!empty($combinationIds)) {
+            $imageRows = \Db::getInstance()->executeS(
+                'SELECT pai.id_product_attribute, MIN(pai.id_image) AS id_image'
+                . ' FROM `' . _DB_PREFIX_ . 'product_attribute_image` pai'
+                . ' WHERE pai.id_product_attribute IN (' . implode(',', array_map('intval', $combinationIds)) . ')'
+                . ' GROUP BY pai.id_product_attribute'
+            );
+            if (is_array($imageRows)) {
+                foreach ($imageRows as $r) {
+                    $imageMap[(int) $r['id_product_attribute']] = (int) $r['id_image'];
+                }
+            }
         }
 
         foreach ($products as &$product) {
             $idProduct = isset($product['id_product']) ? (int) $product['id_product'] : 0;
-            if ($idProduct > 0 && !empty($matchMap[$idProduct]) && empty($product['id_product_attribute'])) {
-                $product['id_product_attribute'] = $matchMap[$idProduct];
+            if ($idProduct <= 0 || empty($matchMap[$idProduct])) {
+                continue;
+            }
+            $idPa = $matchMap[$idProduct];
+            if (empty($product['id_product_attribute'])) {
+                $product['id_product_attribute'] = $idPa;
+            }
+            if (!empty($imageMap[$idPa]) && empty($product['cover_image_id'])) {
+                $product['cover_image_id'] = $imageMap[$idPa];
             }
         }
         unset($product);

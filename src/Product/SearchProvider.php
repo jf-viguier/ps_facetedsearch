@@ -694,17 +694,24 @@ class SearchProvider implements FacetsRendererInterface, ProductSearchProviderIn
         // Fetch combination cover image so the listing card shows the combination's
         // image instead of the product's default cover (cf. Product::getProductProperties
         // line ~5653 in PS core: cover_image_id fallback uses Product::getCover()).
+        // The "first" image is the one shown first on the product page: cover image first,
+        // then ordered by position — matching Image::getImages() ordering.
         $imageMap = [];
         if (!empty($combinationIds)) {
             $imageRows = \Db::getInstance()->executeS(
-                'SELECT pai.id_product_attribute, MIN(pai.id_image) AS id_image'
+                'SELECT pai.id_product_attribute, pai.id_image'
                 . ' FROM `' . _DB_PREFIX_ . 'product_attribute_image` pai'
+                . ' INNER JOIN `' . _DB_PREFIX_ . 'image` i ON i.id_image = pai.id_image'
                 . ' WHERE pai.id_product_attribute IN (' . implode(',', array_map('intval', $combinationIds)) . ')'
-                . ' GROUP BY pai.id_product_attribute'
+                . ' ORDER BY pai.id_product_attribute, i.cover DESC, i.position ASC, i.id_image ASC'
             );
             if (is_array($imageRows)) {
                 foreach ($imageRows as $r) {
-                    $imageMap[(int) $r['id_product_attribute']] = (int) $r['id_image'];
+                    $idPa = (int) $r['id_product_attribute'];
+                    // Keep only the first row per combination (ORDER BY guarantees cover/position priority).
+                    if (!isset($imageMap[$idPa])) {
+                        $imageMap[$idPa] = (int) $r['id_image'];
+                    }
                 }
             }
         }

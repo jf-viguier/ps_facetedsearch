@@ -37,7 +37,16 @@ class MySQLTest extends MockeryTestCase
 
     protected function setUp()
     {
-        $this->adapter = new MySQL();
+        // Fork Batinea: combination feature filtering is always enabled at runtime (see
+        // CombinationFeature), so the adapter is pinned here to the historical product-only
+        // behavior to keep the upstream expectations below meaningful. The combination
+        // behavior is covered by the dedicated tests further down, which force it back on.
+        $this->adapter = new class() extends MySQL {
+            protected function isCombinationFeatureFilteringEnabled()
+            {
+                return false;
+            }
+        };
 
         $mock = Mockery::mock(StockAvailable::class);
         $mock->shouldReceive('addSqlShopRestriction')

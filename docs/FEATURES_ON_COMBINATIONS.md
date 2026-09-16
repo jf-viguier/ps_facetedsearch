@@ -171,7 +171,7 @@ Aucun index supplémentaire n'est nécessaire.
 
 - **Multi-shop** : la table dérivée ne filtre pas par `id_shop`. Le filtrage shop est appliqué en aval par les autres `JOIN` (`product_shop ps`), donc fonctionnel ; en revanche une combinaison désactivée dans un shop mais active dans un autre apparaît dans le pool. Acceptable en mono-shop, à surveiller en multistore.
 - **Présélection sur match produit** : si la valeur filtrée existe à la fois sur le produit et sur une combinaison, la vignette présélectionne quand même la combinaison.
-- **Suivi upstream** : à chaque mise à jour d'upstream, rebaser la branche sur `ps/dev`. Seuls `src/CombinationFeature.php`, `src/Product/SearchProvider.php` et `MySQLTest::setUp()` divergent ; `src/Adapter/MySQL.php` doit rester identique à upstream.
+- **Suivi upstream** : à chaque mise à jour d'upstream, rebaser la branche sur `ps/dev` — procédure détaillée dans [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md). Seuls `src/CombinationFeature.php`, `src/Product/SearchProvider.php` et `MySQLTest::setUp()` divergent ; `src/Adapter/MySQL.php` doit rester identique à upstream.
 
 ## 8. Historique
 

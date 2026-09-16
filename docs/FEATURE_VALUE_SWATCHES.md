@@ -20,7 +20,7 @@ Les deux répertoires étant distincts, un `id_feature_value` et un `id_attribut
 Côté back-office, `creafeatures` se greffe sur les hooks que le core dispatche déjà :
 
 - `displayFeatureValueForm` (rendu depuis `controllers/feature_value/helpers/form/form.tpl`) pour ajouter le champ couleur et le champ fichier ;
-- `displayFeatureValuePostProcess` pour refuser un code couleur mal formé **avant** la sauvegarde — le core passe ses `errors` par référence justement pour permettre à un module d'interrompre l'enregistrement ;
+- `displayFeatureValuePostProcess` pour refuser une couleur mal formée **avant** la sauvegarde — même règle que le core applique aux couleurs d'attributs (`Validate::isColor()`, donc `#RRGGBB` ou un nom CSS comme `red`), plus la forme courte `#fff` — le core passe ses `errors` par référence justement pour permettre à un module d'interrompre l'enregistrement ;
 - `actionFeatureValueSave` (dispatché par `FeatureValue::add()` / `update()`, donc l'id est connu même à la création) pour écrire la couleur et traiter l'upload ;
 - `actionFeatureValueDelete` pour supprimer l'image avec la valeur.
 

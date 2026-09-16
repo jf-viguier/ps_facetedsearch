@@ -119,9 +119,11 @@ PrestaShop, en aval, utilise `id_product_attribute` via son `ProductLazyArray` p
 
 ## 4. Tests
 
+La suite tourne sous PHP 7.4 (cf. [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md#35-vérifier)) :
+
 ```bash
-composer install
-composer test
+PHP74="C:/wamp64/bin/php/php7.4.33/php.exe"
+$PHP74 -d date.timezone=UTC ./vendor/bin/phpunit -c tests/php/phpunit.xml
 ```
 
 - `tests/php/FacetedSearch/CombinationFeatureTest.php` (fork) : vérifie que le filtrage combinaison est toujours actif.

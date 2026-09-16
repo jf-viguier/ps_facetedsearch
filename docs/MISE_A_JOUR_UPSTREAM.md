@@ -96,7 +96,17 @@ php -l src/Product/SearchProvider.php
 php -l tests/php/FacetedSearch/Adapter/MySQLTest.php
 ```
 
-Tests : `composer install && composer test`. ⚠️ `phpunit ~5.7` ne tourne **pas** sur le PHP 8.1 de la machine de dev (wamp) — il faut un PHP 7.x, ou se fier à la CI du fork.
+Tests et lint — ⚠️ `phpunit ~5.7` ne tourne **pas** sur le PHP 8.1 par défaut de wamp, il faut le PHP 7.4 également installé :
+
+```bash
+PHP74="C:/wamp64/bin/php/php7.4.33/php.exe"
+
+$PHP74 /c/ProgramData/ComposerSetup/bin/composer.phar install --no-interaction
+$PHP74 -d date.timezone=UTC ./vendor/bin/phpunit -c tests/php/phpunit.xml
+$PHP74 ./vendor/bin/php-cs-fixer fix --no-interaction --dry-run --diff
+```
+
+Attendu : `OK (124 tests, 1080 assertions)` et aucun fichier remonté par php-cs-fixer (état au 2026-09-16).
 
 ### 3.6 Pousser
 

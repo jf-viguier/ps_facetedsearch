@@ -2,6 +2,9 @@
 
 > Procédure de rebase de la branche `feat/facetedwithfeaturesoncombinations` sur `ps/dev`.
 > Voir [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBINATIONS.md) pour ce que contient la branche.
+>
+> ⚠️ **La mise à jour de ce module passe exclusivement par git.** Le bouton « Mettre à jour » du
+> back-office écrase le fork sans prévenir — voir §6 pour le mécanisme et la protection en place.
 
 ## 1. Prérequis
 
@@ -148,3 +151,89 @@ Puis dérouler les cas de §5 de [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBI
 | Date | Base upstream | Tête de branche | Notes |
 | --- | --- | --- | --- |
 | 2026-09-16 | `4933b63` | `c3b1776` | Remplacement du POC maison par l'implémentation du core (PR #1292) ; suppression du feature flag ; `src/Adapter/MySQL.php` réaligné sur upstream. Sauvegarde : tag `backup/feat-facetedwithfeaturesoncombinations-pre-core` (`12cf94c`). |
+
+## 6. Ne jamais mettre à jour ce module depuis le back-office
+
+### 6.1 Ce qui s'est passé le 2026-09-16
+
+Une mise à jour lancée depuis le Module Manager a remplacé tout le code du fork par le paquet publié en amont. Trace relevée dans l'access log Apache :
+
+```
+16/Sep/2026:15:25:50  POST /admin…/improve/modules/manage/action/upgrade/ps_facetedsearch
+  ?source=https%3A%2F%2Fapi.prestashop-project.org%2Fassets%2Fmodules%2Fps_facetedsearch%2Fv5.1.0%2Fps_facetedsearch.zip
+```
+
+Dégâts : les quatre fichiers de `src/` qui divergent (§2) revenus en version upstream, le `vendor/` de dev écrasé par celui de production (classmap PHPUnit perdue), et des `index.php` de garde ajoutés. `docs/` et `tests/` ont survécu uniquement parce que le paquet ne les contient pas et que l'extraction se superpose sans supprimer.
+
+Conséquence fonctionnelle immédiate : `CombinationFeature::isFilteringEnabled()` étant redevenu conditionné au feature flag, le filtrage sur les caractéristiques de combinaison s'est éteint silencieusement — les facettes ne remontaient plus que les valeurs de niveau produit.
+
+### 6.2 D'où vient le zip
+
+Ni Addons ni `ps_mbo` ne sont impliqués — le module `ps_mbo` n'est même pas installé. C'est **`ps_distributionapiclient`** qui alimente le Module Manager, via l'API du projet PrestaShop :
+
+```php
+// modules/ps_distributionapiclient/src/DistributionApi.php
+private const API_ENDPOINT = 'https://api.prestashop-project.org';
+```
+
+Son hook `actionListModules` renvoie pour chaque module natif un tableau `['name', 'version_available', 'download_url']`. Le core fusionne ces attributs ([`ModuleRepository::enrichModuleAttributesFromHook()`](../../../src/Core/Module/ModuleRepository.php)) puis construit le lien du bouton ([`AdminModuleDataProvider::setActionUrls()`](../../../src/Adapter/Module/AdminModuleDataProvider.php)) :
+
+```php
+if ($action === 'upgrade' && $moduleAttributes->get('download_url') !== null) {
+    $parameters['source'] = $moduleAttributes->get('download_url');
+}
+```
+
+### 6.3 Les deux chemins de téléchargement
+
+Ils sont distincts, et il faut fermer les deux. Dans `Core\Module\ModuleManager::upgrade()` :
+
+```php
+if ($source !== null) {
+    $handler = $this->sourceFactory->getHandler($source);   // RemoteZipSourceHandler → télécharge
+    $handler->handle($source);                              // extractTo(), sans suppression préalable
+}
+$this->hookManager->exec('actionBeforeUpgradeModule', ['moduleName' => $name, 'source' => $source]);
+$upgraded = $this->upgradeMigration($name) && $module->onUpgrade(...);
+```
+
+| Chemin | Déclencheur | Qui télécharge |
+| --- | --- | --- |
+| Avec `source` | bouton du BO | le **core**, avant tout hook — `hookActionBeforeUpgradeModule()` sort d'ailleurs immédiatement quand `source` est renseigné |
+| Sans `source` | `php bin/console prestashop:module upgrade <module>` | **`ps_distributionapiclient`**, dans son hook |
+
+### 6.4 La protection en place
+
+[`override/modules/ps_distributionapiclient/ps_distributionapiclient.php`](../../../override/modules/ps_distributionapiclient/ps_distributionapiclient.php) (dépôt `www`, commit `49fa517`) surcharge les deux méthodes :
+
+- `hookActionListModules()` retire les modules épinglés de la liste → plus de `download_url`, donc plus de bouton et plus de `source` distant ;
+- `hookActionBeforeUpgradeModule()` court-circuite le téléchargement pour ces mêmes modules → couvre le chemin CLI.
+
+La liste est la constante `PINNED_MODULES`, à compléter si d'autres modules natifs sont forkés. PrestaShop charge ce fichier via [`Module::coreLoadModule()`](../../../classes/module/Module.php), qui cherche `override/modules/{module}/{module}.php` et y attend une classe `{module}Override` — pas de passage par le class_index, donc pas de vidage de cache nécessaire.
+
+**Ce qui reste fonctionnel** : les mises à jour venant du disque. `Adapter\Module\Module::canBeUpgraded()` les détecte séparément de l'API :
+
+```php
+if ($this->hasNewVersionAvailable()) return true;                 // API — neutralisé
+return version_compare($db_version, $disk_version, '<');          // disque — conservé
+```
+
+Bumper la version dans `ps_facetedsearch.php` continue donc de déclencher les scripts `upgrade/upgrade-*.php`.
+
+### 6.5 Compatibilité de l'override
+
+Vérifiée contre la branche `dev` d'upstream (version 2.1.1) le 2026-09-16, alors que l'installation locale est en 1.2.1 sur disque. Sont identiques entre les deux : la classe `Ps_Distributionapiclient extends Module`, les trois hooks enregistrés, les signatures `hookActionListModules(): array` et `hookActionBeforeUpgradeModule(array $params): void`, ainsi que les clés renvoyées par `DistributionApi::getModuleList()` — dont `name`, seule clé dont dépend le filtre.
+
+À revérifier si upstream change l'une de ces signatures ou la structure de `getModuleList()`.
+
+### 6.6 Détecter et réparer
+
+```bash
+# doit toujours ne rien afficher : si des M apparaissent, le fork est désactivé
+git -C modules/ps_facetedsearch status -s src/
+
+# rétablir
+git -C modules/ps_facetedsearch checkout -- src/
+```
+
+Après restauration, vider le cache des blocs de filtres (§4) et relancer `composer install` dans le module si les tests ne démarrent plus — le `vendor/` de dev est écrasé lui aussi.

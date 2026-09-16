@@ -50,6 +50,12 @@ class Converter
     const TYPE_WEIGHT = 'weight';
     const TYPE_EXTRAS = 'extras';
 
+    /**
+     * Fork Batinea: sub-directory of img/ where the creafeatures module stores the swatch
+     * image of a feature value, named after its id (img/fv/12.jpg).
+     */
+    const FEATURE_VALUE_IMG_DIR = 'fv/';
+
     const PROPERTY_URL_NAME = 'url_name';
     const PROPERTY_COLOR = 'color';
     const PROPERTY_TEXTURE = 'texture';
@@ -160,7 +166,17 @@ class Converter
                             $filter->setActive($filterArray['checked']);
                         }
 
-                        if (isset($filterArray['color'])) {
+                        if ($filterBlock['type'] === self::TYPE_FEATURE) {
+                            // Fork Batinea: feature values can carry a swatch too, fed by the
+                            // creafeatures module. The image lives in img/fv/ and the colour code in
+                            // feature_value.color, mirroring the img/co/ + attribute.color convention
+                            // of the core so feature value ids never collide with attribute ids.
+                            if (file_exists(_PS_IMG_DIR_ . self::FEATURE_VALUE_IMG_DIR . $id . '.jpg')) {
+                                $filter->setProperty(self::PROPERTY_TEXTURE, _PS_IMG_ . self::FEATURE_VALUE_IMG_DIR . $id . '.jpg');
+                            } elseif (!empty($filterArray['color'])) {
+                                $filter->setProperty(self::PROPERTY_COLOR, $filterArray['color']);
+                            }
+                        } elseif (isset($filterArray['color'])) {
                             if (file_exists(_PS_COL_IMG_DIR_ . $id . '.jpg')) {
                                 $filter->setProperty(self::PROPERTY_TEXTURE, _THEME_COL_DIR_ . $id . '.jpg');
                             } elseif ($filterArray['color'] != '') {

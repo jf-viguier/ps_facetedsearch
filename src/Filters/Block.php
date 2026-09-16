@@ -890,6 +890,12 @@ class Block
                     : 0,
             ];
 
+            // Fork Batinea: colour code set on the feature value by the creafeatures module.
+            // Only exposed when filled in, so a catalog without it keeps the exact same block.
+            if (!empty($featureValues[$idFeatureValue]['color'])) {
+                $featureBlock[$idFeature]['values'][$idFeatureValue]['color'] = $featureValues[$idFeatureValue]['color'];
+            }
+
             if (array_key_exists('id_feature', $selectedFilters)) {
                 foreach ($selectedFilters['id_feature'] as $selectedFeature) {
                     if (in_array($idFeatureValue, $selectedFeature)) {

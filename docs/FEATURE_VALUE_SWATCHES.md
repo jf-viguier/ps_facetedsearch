@@ -8,7 +8,7 @@ Le core sait afficher une pastille dans les facettes pour les **attributs** d'un
 
 ## 2. Où sont stockées les données
 
-Le module `creafeatures` (v1.8.0) fournit la saisie et le stockage. Il reprend volontairement les conventions du core :
+Le module `creafeatures` (v1.8.1) fournit la saisie et le stockage. Il reprend volontairement les conventions du core :
 
 | | Attributs (core) | Valeurs de caractéristiques (creafeatures) |
 | --- | --- | --- |
@@ -20,6 +20,7 @@ Les deux répertoires étant distincts, un `id_feature_value` et un `id_attribut
 Côté back-office, `creafeatures` se greffe sur les hooks que le core dispatche déjà :
 
 - `displayFeatureValueForm` (rendu depuis `controllers/feature_value/helpers/form/form.tpl`) pour ajouter le champ couleur et le champ fichier ;
+- `displayFeatureValuePostProcess` pour refuser un code couleur mal formé **avant** la sauvegarde — le core passe ses `errors` par référence justement pour permettre à un module d'interrompre l'enregistrement ;
 - `actionFeatureValueSave` (dispatché par `FeatureValue::add()` / `update()`, donc l'id est connu même à la création) pour écrire la couleur et traiter l'upload ;
 - `actionFeatureValueDelete` pour supprimer l'image avec la valeur.
 

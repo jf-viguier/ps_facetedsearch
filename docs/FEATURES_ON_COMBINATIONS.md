@@ -26,12 +26,12 @@ Le moteur SQL n'est **plus un patch maison**. Il vient du core, via la PR
 [PrestaShop/ps_facetedsearch#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292)
 (« Support combination feature values in feature filters »), mergée dans `dev` upstream.
 
-Ce fork ne conserve que trois écarts avec upstream :
+Ce fork ne conserve qu'**un seul écart de code** avec upstream ; le reste vit dans le module `crea_facetedsearchcustomisations` :
 
 | Écart | Fichier | Raison |
 | --- | --- | --- |
 | Filtrage combinaison toujours actif | `src/CombinationFeature.php` | upstream le conditionne à PrestaShop >= 9.3 + feature flag `combination_feature_values` ; ici on est en PrestaShop 8 et c'est `creafeatures` qui fournit la table |
-| Présélection de la combinaison matchée sur la vignette | `src/Product/SearchProvider.php` | non couvert par la PR upstream |
+| Présélection de la combinaison matchée sur la vignette | *(hors fork)* module `crea_facetedsearchcustomisations` | non couvert par la PR upstream |
 | Tests upstream épinglés sur le comportement « produit seul » | `tests/php/FacetedSearch/Adapter/MySQLTest.php` | conséquence directe du point 1 |
 
 `src/Adapter/MySQL.php` est **identique à upstream**, ce qui rend les rebases indolores sur le fichier le plus volumineux.
@@ -87,18 +87,16 @@ Conséquence : **un filtre feature et un filtre attribut doivent être satisfait
 
 Le core fait l'**union** des deux niveaux, il n'y a plus de notion d'override. Si la règle « la combinaison écrase le produit » est requise métier, elle doit être obtenue en nettoyant les données (`feature_product`) plutôt qu'en SQL.
 
-### 3.4 Présélection de la combinaison matchée (spécifique fork)
+### 3.4 Présélection de la combinaison matchée (hors fork)
 
-Dans `SearchProvider::runQuery`, après `getProductByFilters` :
+Assurée par le module `crea_facetedsearchcustomisations`, pas par le fork. Sa classe `CreaSearchProvider` appelle `parent::runQuery()` puis post-traite le résultat :
 
 ```php
-$this->injectFeatureMatchedCombinations(
-    $productsAndCount['products'],
-    $facetedSearchFilters
-);
+$result = parent::runQuery($context, $query);
+$this->injectFeatureMatchedCombinations($result, $facetedSearchFilters);
 ```
 
-La méthode `SearchProvider::injectFeatureMatchedCombinations()` :
+`CreaSearchProvider::injectFeatureMatchedCombinations()` lit `$result->getProducts()`, puis :
 
 1. Sort immédiatement si aucun filtre `id_feature` n'est actif.
 2. Ne s'intéresse qu'aux matchs **de niveau combinaison** — un produit qui ne matche que par sa feature produit n'a pas de combinaison à présélectionner. Elle interroge donc directement `feature_product_attribute` :

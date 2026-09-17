@@ -89,7 +89,7 @@ Le core fait l'**union** des deux niveaux, il n'y a plus de notion d'override. S
 
 ### 3.4 Présélection de la combinaison matchée (hors fork)
 
-Assurée par le module `crea_facetedsearchcustomisations`, pas par le fork. Sa classe `CreaSearchProvider` appelle `parent::runQuery()` puis post-traite le résultat :
+Assurée par le module `crea_facetedsearchcustomisations` ([README](../../crea_facetedsearchcustomisations/README.md)), pas par le fork. Sa classe `CreaSearchProvider` appelle `parent::runQuery()` puis post-traite le résultat :
 
 ```php
 $result = parent::runQuery($context, $query);

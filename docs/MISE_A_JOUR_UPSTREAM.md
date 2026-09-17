@@ -35,7 +35,18 @@ C'est le point le plus important : **un seul fichier de `src/` diverge**, plus d
 | `tests/php/FacetedSearch/CombinationFeatureTest.php` | fichier ajouté par le fork | |
 | `docs/` | fichiers ajoutés par le fork | |
 
-Tout le reste des personnalisations Batinea vit **hors du fork**, dans le module `crea_facetedsearchcustomisations` : il répond au hook `productSearchProvider` avant `ps_facetedsearch`, renvoie une sous-classe de son `SearchProvider`, et post-traite le `ProductSearchResult` — qui fait partie de l'API publique du core. Voir [FEATURE_VALUE_SWATCHES.md](FEATURE_VALUE_SWATCHES.md) et [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBINATIONS.md).
+Tout le reste des personnalisations Batinea vit **hors du fork**, dans le module `crea_facetedsearchcustomisations` : il répond au hook `productSearchProvider` avant `ps_facetedsearch`, renvoie une sous-classe de son `SearchProvider`, et post-traite le `ProductSearchResult` — qui fait partie de l'API publique du core.
+
+Il en porte quatre :
+
+| Personnalisation | Détail |
+| --- | --- |
+| Présélection de la combinaison matchée par un filtre caractéristique, avec son image | [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBINATIONS.md) §3.4 |
+| Pastilles couleur / image sur les valeurs de caractéristiques | [FEATURE_VALUE_SWATCHES.md](FEATURE_VALUE_SWATCHES.md) |
+| Slider de prix sans centimes | [README du module](../../crea_facetedsearchcustomisations/README.md) §3.3 |
+| Une facette gardant un filtre coché reste affichée | [README du module](../../crea_facetedsearchcustomisations/README.md) §3.4 |
+
+Référence complète du module : [crea_facetedsearchcustomisations/README.md](../../crea_facetedsearchcustomisations/README.md) — il vit dans le dépôt parent `Batinea-OGS/www`, sous `modules/crea_facetedsearchcustomisations/`, donc les liens le pointant depuis ce dépôt ne résolvent pas sur GitHub.
 
 Pourquoi `CombinationFeature.php` ne peut pas en sortir : la classe est consultée au fond de `MySQL::getFieldMapping()`, et `MySQL::getFilteredSearchAdapter()` fait `new self()` et non `new static()`. Une sous-classe d'adaptateur ne se propagerait donc pas aux adaptateurs imbriqués qui calculent les compteurs de facettes.
 

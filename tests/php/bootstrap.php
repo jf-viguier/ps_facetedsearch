@@ -12,8 +12,6 @@ require_once __DIR__ . '/FacetedSearch/Interface/FacetsRendererInterface.php';
 require_once __DIR__ . '/FacetedSearch/Interface/ProductSearchProviderInterface.php';
 
 define('_PS_COL_IMG_DIR_', __DIR__ . '/files/');
-define('_PS_IMG_DIR_', __DIR__ . '/files/');
-define('_PS_IMG_', '/img/');
 
 // Fake pSQL function
 function pSQL($string, $htmlOK = false)

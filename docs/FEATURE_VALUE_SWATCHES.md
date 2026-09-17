@@ -26,39 +26,25 @@ Côté back-office, `creafeatures` se greffe sur les hooks que le core dispatche
 
 Aucune surcharge de `AdminFeaturesController` ni de la classe `FeatureValue` n'est nécessaire.
 
-## 3. Ce que fait le fork
+## 3. Ce qui rend la pastille
 
-Deux fichiers, une quinzaine de lignes.
-
-### 3.1 `src/Filters/Block.php`
-
-`getFeaturesBlock()` expose la couleur dans le bloc de filtres, **uniquement quand elle est renseignée** — un catalogue sans couleur produit donc exactement le même bloc qu'upstream :
+**Rien dans ce fork.** Le rendu est assuré par le module `crea_facetedsearchcustomisations`, qui répond au hook `productSearchProvider` avant `ps_facetedsearch` et renvoie `CreaSearchProvider extends SearchProvider`. Cette sous-classe appelle `parent::runQuery()` puis pose les propriétés sur les filtres :
 
 ```php
-if (!empty($featureValues[$idFeatureValue]['color'])) {
-    $featureBlock[$idFeature]['values'][$idFeatureValue]['color'] = $featureValues[$idFeatureValue]['color'];
-}
-```
-
-Rien à changer dans `DataAccessor::getFeatureValues()` : la requête fait déjà `SELECT v.*`, donc la colonne `color` remonte d'elle-même dès que `creafeatures` l'a créée.
-
-### 3.2 `src/Filters/Converter.php`
-
-Une branche dédiée aux caractéristiques, qui laisse le chemin attribut d'upstream intact :
-
-```php
-if ($filterBlock['type'] === self::TYPE_FEATURE) {
-    if (file_exists(_PS_IMG_DIR_ . self::FEATURE_VALUE_IMG_DIR . $id . '.jpg')) {
-        $filter->setProperty(self::PROPERTY_TEXTURE, _PS_IMG_ . self::FEATURE_VALUE_IMG_DIR . $id . '.jpg');
-    } elseif (!empty($filterArray['color'])) {
-        $filter->setProperty(self::PROPERTY_COLOR, $filterArray['color']);
+foreach ($facetCollection->getFacets() as $facet) {
+    if ($facet->getType() !== 'feature') { continue; }
+    foreach ($facet->getFilters() as $filter) {
+        // img/fv/{id}.jpg prioritaire, sinon feature_value.color
+        $filter->setProperty('texture', ...);   // ou 'color'
     }
-} elseif (isset($filterArray['color'])) {
-    // chemin upstream, inchangé
 }
 ```
 
-L'image l'emporte sur le code couleur quand les deux sont renseignés, comme le fait le core pour les attributs.
+`ProductSearchResult`, `Facet` et `Filter` font partie de l'API publique du core — c'est la couture prévue par la [devdoc](https://devdocs.prestashop-project.org/9/development/components/faceted-search/inside-faceted-search-module/). Le fork n'a donc **aucune modification** de `Block.php` ni de `Converter.php`.
+
+Conséquence appréciable : les propriétés sont posées **après** la lecture du cache `ps_layered_filter_block`. Changer une couleur ou une image est visible immédiatement, sans vider ce cache — ce qui n'était pas le cas quand la couleur voyageait dans le bloc mis en cache.
+
+Coût : une requête supplémentaire par listing (`SELECT id_feature_value, color … WHERE color != "" AND id_feature_value IN (…)`, bornée aux valeurs réellement affichées, donc sur index primaire), et un `file_exists()` par valeur affichée — le même que faisait déjà le `Converter` pour les attributs.
 
 ## 4. Rendu front
 
@@ -84,6 +70,6 @@ TRUNCATE TABLE ps_layered_filter_block;
 
 ## 6. Tests
 
-`ConverterTest::testGetFacetsFromFilterBlocksExposesFeatureValueSwatches` couvre les trois cas (image prioritaire, couleur seule, ni l'un ni l'autre), et `testGetFacetsFromFilterBlocksKeepsAttributeColorsOnTheirOwnDirectory` verrouille le fait que les attributs continuent de résoudre dans `img/co/`.
+⚠️ **Pas de test automatisé** sur cette fonctionnalité depuis qu'elle a quitté le fork : le module `crea_facetedsearchcustomisations` n'a pas d'infrastructure PHPUnit, et monter les mocks PrestaShop nécessaires représenterait plus de travail que le code testé.
 
-Fixture : `tests/php/files/fv/12.jpg`. Le bootstrap de tests définit `_PS_IMG_DIR_` et `_PS_IMG_` en plus de `_PS_COL_IMG_DIR_`.
+La recette se fait donc sur le front (§5). Les trois formats acceptés — code hexadécimal, hexadécimal court, nom de couleur CSS — ainsi que la priorité de l'image sur la couleur, ont été vérifiés manuellement le 2026-09-17.

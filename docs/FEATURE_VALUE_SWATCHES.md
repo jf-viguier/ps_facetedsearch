@@ -42,7 +42,7 @@ foreach ($facetCollection->getFacets() as $facet) {
 
 `ProductSearchResult`, `Facet` et `Filter` font partie de l'API publique du core — c'est la couture prévue par la [devdoc](https://devdocs.prestashop-project.org/9/development/components/faceted-search/inside-faceted-search-module/). Le fork n'a donc **aucune modification** de `Block.php` ni de `Converter.php`.
 
-Mécanique complète du module, et les trois autres personnalisations qu'il porte : [crea_facetedsearchcustomisations/README.md](../../crea_facetedsearchcustomisations/README.md).
+Mécanique complète du module, et les trois autres customisations qu'il porte : [crea_facetedsearchcustomisations/README.md](../../crea_facetedsearchcustomisations/README.md).
 
 Conséquence appréciable : les propriétés sont posées **après** la lecture du cache `ps_layered_filter_block`. Changer une couleur ou une image est visible immédiatement, sans vider ce cache — ce qui n'était pas le cas quand la couleur voyageait dans le bloc mis en cache.
 

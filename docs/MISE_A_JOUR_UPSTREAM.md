@@ -35,11 +35,11 @@ C'est le point le plus important : **un seul fichier de `src/` diverge**, plus d
 | `tests/php/FacetedSearch/CombinationFeatureTest.php` | fichier ajouté par le fork | |
 | `docs/` | fichiers ajoutés par le fork | |
 
-Tout le reste des personnalisations Batinea vit **hors du fork**, dans le module `crea_facetedsearchcustomisations` : il répond au hook `productSearchProvider` avant `ps_facetedsearch`, renvoie une sous-classe de son `SearchProvider`, et post-traite le `ProductSearchResult` — qui fait partie de l'API publique du core.
+Tout le reste des customisations Batinea vit **hors du fork**, dans le module `crea_facetedsearchcustomisations` : il répond au hook `productSearchProvider` avant `ps_facetedsearch`, renvoie une sous-classe de son `SearchProvider`, et post-traite le `ProductSearchResult` — qui fait partie de l'API publique du core.
 
 Il en porte quatre :
 
-| Personnalisation | Détail |
+| Customisation | Détail |
 | --- | --- |
 | Présélection de la combinaison matchée par un filtre caractéristique, avec son image | [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBINATIONS.md) §3.4 |
 | Pastilles couleur / image sur les valeurs de caractéristiques | [FEATURE_VALUE_SWATCHES.md](FEATURE_VALUE_SWATCHES.md) |
@@ -94,7 +94,7 @@ En cas de conflit :
 
 - **sur `src/Adapter/MySQL.php`** → prendre la version upstream telle quelle : `git checkout --theirs src/Adapter/MySQL.php` puis vérifier §3.5. Si un commit local touche ce fichier, c'est qu'une règle du §2 a été enfreinte.
 - **sur `src/CombinationFeature.php`** → si upstream fait évoluer la classe, reprendre sa version et re-supprimer le `version_compare` + la résolution du feature flag.
-- **sur tout autre fichier de `src/`** → il ne devrait y en avoir aucun : prendre la version upstream. Si un conflit apparaît, c'est qu'une personnalisation a été réintroduite dans le fork au lieu du module.
+- **sur tout autre fichier de `src/`** → il ne devrait y en avoir aucun : prendre la version upstream. Si un conflit apparaît, c'est qu'une customisation a été réintroduite dans le fork au lieu du module.
 
 Si upstream a repris un commit local à l'identique (ça s'est produit avec le fix `Tools::unSerialize`), `git rebase` le supprime tout seul.
 

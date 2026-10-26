@@ -121,7 +121,7 @@ $PHP74 -d date.timezone=UTC ./vendor/bin/phpunit -c tests/php/phpunit.xml
 $PHP74 ./vendor/bin/php-cs-fixer fix --no-interaction --dry-run --diff
 ```
 
-Attendu : `OK (124 tests, 1080 assertions)` et aucun fichier remonté par php-cs-fixer (état au 2026-09-16).
+Attendu : `OK (126 tests, 1102 assertions)` et aucun fichier remonté par php-cs-fixer (état au 2026-10-26).
 
 ### 3.6 Pousser
 
@@ -155,6 +155,7 @@ Puis dérouler les cas de §5 de [FEATURES_ON_COMBINATIONS.md](FEATURES_ON_COMBI
 
 | Date | Base upstream | Tête de branche | Notes |
 | --- | --- | --- | --- |
+| 2026-10-26 | `6187d3b` | `f8d8fe5` | Rebase sans conflit, 14 commits rejoués. Apporte la PR [#1346](https://github.com/PrestaShop/ps_facetedsearch/pull/1346) (performance : jointure de stock partagée, comptage des groupes non sélectionnés en une requête, sous-arbre de catégorie borné sur `nleft`), le support des conditions produit de PS 9.2, le correctif PHP 8.5, et le remplacement de webpack par esbuild. `views/dist/index.php` retiré en amont. Tests : 126, 1102 assertions. Sauvegarde : tag `backup/feat-combinations-20261026` (`401b107`). |
 | 2026-09-16 | `4933b63` | `c3b1776` | Remplacement du POC maison par l'implémentation du core (PR #1292) ; suppression du feature flag ; `src/Adapter/MySQL.php` réaligné sur upstream. Sauvegarde : tag `backup/feat-facetedwithfeaturesoncombinations-pre-core` (`12cf94c`). |
 
 ## 6. Ne jamais mettre à jour ce module depuis le back-office

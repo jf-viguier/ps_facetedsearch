@@ -26,15 +26,16 @@ Le moteur SQL n'est **plus un patch maison**. Il vient du core, via la PR
 [PrestaShop/ps_facetedsearch#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292)
 (« Support combination feature values in feature filters »), mergée dans `dev` upstream.
 
-Ce fork ne conserve qu'**un seul écart de code** avec upstream ; le reste vit dans le module `crea_facetedsearchcustomisations` :
+Ce fork ne conserve que **deux écarts de code** avec upstream ; le reste vit dans le module `crea_facetedsearchcustomisations` :
 
 | Écart | Fichier | Raison |
 | --- | --- | --- |
 | Filtrage combinaison toujours actif | `src/CombinationFeature.php` | upstream le conditionne à PrestaShop >= 9.3 + feature flag `combination_feature_values` ; ici on est en PrestaShop 8 et c'est `creafeatures` qui fournit la table |
+| Filtres de caractéristique en `EXISTS` | `src/Adapter/MySQL.php` | correctif de performance de la requête upstream (§3.5), à proposer upstream |
 | Présélection de la combinaison matchée sur la vignette | *(hors fork)* module `crea_facetedsearchcustomisations` | non couvert par la PR upstream |
 | Tests upstream épinglés sur le comportement « produit seul » | `tests/php/FacetedSearch/Adapter/MySQLTest.php` | conséquence directe du point 1 |
 
-`src/Adapter/MySQL.php` est **identique à upstream**, ce qui rend les rebases indolores sur le fichier le plus volumineux.
+`src/Adapter/MySQL.php` ne diffère d'upstream que par ce correctif `EXISTS` ; à chaque rebase, il faut le réappliquer tant qu'upstream ne l'a pas repris (cf. [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md) §3.4).
 
 ## 3. Architecture
 
@@ -115,6 +116,27 @@ $this->injectFeatureMatchedCombinations($result, $facetedSearchFilters);
 
 PrestaShop, en aval, utilise `id_product_attribute` via son `ProductLazyArray` pour rendre la vignette avec la combinaison (URL, prix, image).
 
+### 3.5 Filtres de caractéristique en `EXISTS` (correctif de performance du fork)
+
+Joindre la table dérivée **une fois par filtre** ne la relie au produit que par `id_product` : la condition qui rattache chaque valeur à la combinaison (`id_product_attribute IS NULL OR = pa.id_product_attribute`) n'est vérifiée qu'en fin de jointure. Pour un produit à N combinaisons, chaque filtre multiplie donc ses lignes par N : N^nombre de filtres.
+
+Mesuré en production le 2026-10-28 (catégorie `receveur-douche`, filtres Forme = Rectangle, Longueur = 160, Largeur = 80, comptage des facettes Longueur, Largeur, Matériau, Couleur, Soldes) : **254 s et 2,48 milliards de lignes lues** ; la même requête en `EXISTS` : **0,17 s et 1,2 million**, résultats identiques (`tools/bench_facet_exists.php` du dépôt parent).
+
+Quand le filtrage combinaison est actif, chaque **filtre** sur `id_feature_value` devient :
+
+```sql
+(EXISTS (SELECT 1 FROM ps_feature_product fpe
+         WHERE fpe.id_product = p.id_product AND fpe.id_feature_value IN (...))
+ OR EXISTS (SELECT 1 FROM ps_feature_product_attribute fpae
+         WHERE fpae.id_product_attribute = pa.id_product_attribute AND fpae.id_feature_value IN (...)))
+```
+
+- la sémantique est inchangée : valeur portée par le produit, ou par **la** combinaison `pa` courante, comme les autres filtres (§3.2) ;
+- un `EXISTS` teste la présence d'une ligne sans en multiplier aucune ;
+- la jointure sur `pa` reste ajoutée (dépendance des `EXISTS`) ;
+- la **caractéristique comptée** (`id_feature`, `Block::countFacetValues()`) garde sa jointure sur la table dérivée : ses valeurs sont le résultat attendu ;
+- filtrage combinaison inactif (comportement upstream par défaut) : aucune différence, les jointures sur `feature_product` sont conservées.
+
 ## 4. Tests
 
 La suite tourne sous PHP 7.4 (cf. [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md#35-vérifier)) :
@@ -126,7 +148,9 @@ $PHP74 -d date.timezone=UTC ./vendor/bin/phpunit -c tests/php/phpunit.xml
 
 - `tests/php/FacetedSearch/CombinationFeatureTest.php` (fork) : vérifie que le filtrage combinaison est toujours actif.
 - `MySQLTest::testGetQueryWithFeatureIncludesCombinationFeatures` (core) : forme du `JOIN` sur la table dérivée.
-- `MySQLTest::testFeatureAndAttributeFiltersMustMatchTheSameCombination` (core) : corrélation feature/attribut sur la même combinaison.
+- `MySQLTest::testFeatureAndAttributeFiltersMustMatchTheSameCombination` (core, adapté) : corrélation feature/attribut sur la même combinaison, le filtre feature étant un `EXISTS`.
+- `MySQLTest::testCountedFeatureKeepsItsJoinWhileFeatureFiltersUseExists` (fork) : dans une requête de comptage, la caractéristique comptée garde sa jointure, les filtres deviennent des `EXISTS`.
+- `MySQLTest::testFeatureValueAndFilterUsesOneExistsPerValueWithCombinationFeatures` (fork) : facette en ET, un `EXISTS` par valeur sur la même combinaison.
 - Les autres tests de `MySQLTest` utilisent un adapter épinglé sur `isCombinationFeatureFilteringEnabled() === false` pour conserver telles quelles les attentes upstream décrivant le comportement produit seul.
 
 ## 5. Recette fonctionnelle
@@ -171,7 +195,7 @@ Aucun index supplémentaire n'est nécessaire.
 
 - **Multi-shop** : la table dérivée ne filtre pas par `id_shop`. Le filtrage shop est appliqué en aval par les autres `JOIN` (`product_shop ps`), donc fonctionnel ; en revanche une combinaison désactivée dans un shop mais active dans un autre apparaît dans le pool. Acceptable en mono-shop, à surveiller en multistore.
 - **Présélection sur match produit** : si la valeur filtrée existe à la fois sur le produit et sur une combinaison, la vignette présélectionne quand même la combinaison.
-- **Suivi upstream** : à chaque mise à jour d'upstream, rebaser la branche sur `ps/dev` — procédure détaillée dans [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md). Seuls `src/CombinationFeature.php`, `src/Product/SearchProvider.php` et `MySQLTest::setUp()` divergent ; `src/Adapter/MySQL.php` doit rester identique à upstream.
+- **Suivi upstream** : à chaque mise à jour d'upstream, rebaser la branche sur `ps/dev` — procédure détaillée dans [MISE_A_JOUR_UPSTREAM.md](MISE_A_JOUR_UPSTREAM.md). Les fichiers divergents sont listés à son §2 ; dans `src/Adapter/MySQL.php`, seul le correctif `EXISTS` (§3.5) est admis.
 
 ## 8. Historique
 

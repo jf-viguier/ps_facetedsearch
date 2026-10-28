@@ -26,12 +26,13 @@ git remote add ps git@github.com:PrestaShop/ps_facetedsearch.git
 
 ## 2. Ce qui diverge d'upstream
 
-C'est le point le plus important : **un seul fichier de `src/` diverge**, plus des tests et de la doc. Tant que cette liste reste juste, le rebase est indolore.
+C'est le point le plus important : **deux fichiers de `src/` divergent**, plus des tests et de la doc. Tant que cette liste reste juste, le rebase reste maîtrisé.
 
 | Fichier | Nature de l'écart | Voir |
 | --- | --- | --- |
 | `src/CombinationFeature.php` | `isFilteringEnabled()` renvoie `true` en dur (upstream : PS >= 9.3 + feature flag `combination_feature_values`) | [FEATURES_ON_COMBINATIONS](FEATURES_ON_COMBINATIONS.md) |
-| `tests/php/FacetedSearch/Adapter/MySQLTest.php` | `setUp()` épingle l'adapter sur `isCombinationFeatureFilteringEnabled() === false` | |
+| `src/Adapter/MySQL.php` | filtres de caractéristique en `EXISTS` quand le filtrage combinaison est actif (`isFeatureValueExistsFilter()`, `getFeatureValueExistsCondition()` et leurs deux appels dans `computeWhereConditions()` / `computeJoinConditions()`) | [FEATURES_ON_COMBINATIONS](FEATURES_ON_COMBINATIONS.md) §3.5 |
+| `tests/php/FacetedSearch/Adapter/MySQLTest.php` | `setUp()` épingle l'adapter sur `isCombinationFeatureFilteringEnabled() === false` ; tests combinaison adaptés à l'`EXISTS` | |
 | `tests/php/FacetedSearch/CombinationFeatureTest.php` | fichier ajouté par le fork | |
 | `docs/` | fichiers ajoutés par le fork | |
 
@@ -50,7 +51,7 @@ Référence complète du module : [crea_facetedsearchcustomisations/README.md](.
 
 Pourquoi `CombinationFeature.php` ne peut pas en sortir : la classe est consultée au fond de `MySQL::getFieldMapping()`, et `MySQL::getFilteredSearchAdapter()` fait `new self()` et non `new static()`. Une sous-classe d'adaptateur ne se propagerait donc pas aux adaptateurs imbriqués qui calculent les compteurs de facettes.
 
-⚠️ **`src/Adapter/MySQL.php` doit rester identique à upstream.** C'est le fichier le plus gros et le plus actif ; toute modification locale dessus transformerait chaque rebase en corvée. Le moteur SQL du filtrage sur combinaison vient de la PR [#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292), déjà mergée upstream.
+⚠️ **`src/Adapter/MySQL.php` ne diverge d'upstream que par le correctif `EXISTS` (2026-10-28).** C'est le fichier le plus gros et le plus actif : aucune autre modification locale n'y est admise. Le moteur SQL du filtrage sur combinaison vient de la PR [#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292), déjà mergée upstream ; le correctif `EXISTS` est destiné à y être proposé à son tour — une fois repris upstream, `MySQL.php` redevient identique et cette exception disparaît.
 
 ## 3. Procédure
 
@@ -92,7 +93,7 @@ git rebase ps/dev
 
 En cas de conflit :
 
-- **sur `src/Adapter/MySQL.php`** → prendre la version upstream telle quelle : `git checkout --theirs src/Adapter/MySQL.php` puis vérifier §3.5. Si un commit local touche ce fichier, c'est qu'une règle du §2 a été enfreinte.
+- **sur `src/Adapter/MySQL.php`** → partir de la version upstream (`git checkout --theirs src/Adapter/MySQL.php`) **puis réappliquer le correctif `EXISTS`** (§2), sauf s'il a été repris upstream. Ne pas l'oublier : sans lui, une facette à trois filtres de caractéristique repasse de 0,2 s à plusieurs minutes. Vérifier ensuite §3.5. Tout autre écart local sur ce fichier enfreint le §2.
 - **sur `src/CombinationFeature.php`** → si upstream fait évoluer la classe, reprendre sa version et re-supprimer le `version_compare` + la résolution du feature flag.
 - **sur tout autre fichier de `src/`** → il ne devrait y en avoir aucun : prendre la version upstream. Si un conflit apparaît, c'est qu'une customisation a été réintroduite dans le fork au lieu du module.
 
@@ -101,8 +102,8 @@ Si upstream a repris un commit local à l'identique (ça s'est produit avec le f
 ### 3.5 Vérifier
 
 ```bash
-# MySQL.php identique a upstream
-git diff --quiet ps/dev HEAD -- src/Adapter/MySQL.php && echo "MySQL.php OK"
+# MySQL.php : seul le correctif EXISTS doit differer d'upstream
+git diff ps/dev HEAD -- src/Adapter/MySQL.php
 
 # la liste des fichiers divergents correspond au §2
 git diff --stat ps/dev..HEAD
@@ -121,7 +122,7 @@ $PHP74 -d date.timezone=UTC ./vendor/bin/phpunit -c tests/php/phpunit.xml
 $PHP74 ./vendor/bin/php-cs-fixer fix --no-interaction --dry-run --diff
 ```
 
-Attendu : `OK (126 tests, 1102 assertions)` et aucun fichier remonté par php-cs-fixer (état au 2026-10-26).
+Attendu : `OK (128 tests, 1110 assertions)` et aucun fichier remonté par php-cs-fixer (état au 2026-10-28).
 
 ### 3.6 Pousser
 

@@ -31,7 +31,7 @@ Ce fork ne conserve que **deux écarts de code** avec upstream ; le reste vit da
 | Écart | Fichier | Raison |
 | --- | --- | --- |
 | Filtrage combinaison toujours actif | `src/CombinationFeature.php` | upstream le conditionne à PrestaShop >= 9.3 + feature flag `combination_feature_values` ; ici on est en PrestaShop 8 et c'est `creafeatures` qui fournit la table |
-| Filtres de caractéristique en `EXISTS` | `src/Adapter/MySQL.php` | correctif de performance de la requête upstream (§3.5), à proposer upstream |
+| Filtres de caractéristique en `EXISTS` | `src/Adapter/MySQL.php` | correctif de performance de la requête upstream (§3.5), proposé upstream dans la PR [#1377](https://github.com/PrestaShop/ps_facetedsearch/pull/1377) |
 | Présélection de la combinaison matchée sur la vignette | *(hors fork)* module `crea_facetedsearchcustomisations` | non couvert par la PR upstream |
 | Tests upstream épinglés sur le comportement « produit seul » | `tests/php/FacetedSearch/Adapter/MySQLTest.php` | conséquence directe du point 1 |
 

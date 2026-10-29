@@ -31,7 +31,7 @@ C'est le point le plus important : **deux fichiers de `src/` divergent**, plus d
 | Fichier | Nature de l'écart | Voir |
 | --- | --- | --- |
 | `src/CombinationFeature.php` | `isFilteringEnabled()` renvoie `true` en dur (upstream : PS >= 9.3 + feature flag `combination_feature_values`) | [FEATURES_ON_COMBINATIONS](FEATURES_ON_COMBINATIONS.md) |
-| `src/Adapter/MySQL.php` | filtres de caractéristique en `EXISTS` quand le filtrage combinaison est actif (`isFeatureValueExistsFilter()`, `getFeatureValueExistsCondition()` et leurs deux appels dans `computeWhereConditions()` / `computeJoinConditions()`) | [FEATURES_ON_COMBINATIONS](FEATURES_ON_COMBINATIONS.md) §3.5 |
+| `src/Adapter/MySQL.php` | filtres de caractéristique en `EXISTS` quand le filtrage combinaison est actif (clé `existsCondition` de l'entrée `id_feature_value` de `getFieldMapping()` et sa prise en compte dans `computeWhereConditions()` / `computeJoinConditions()`, identique à la PR [#1377](https://github.com/PrestaShop/ps_facetedsearch/pull/1377)) | [FEATURES_ON_COMBINATIONS](FEATURES_ON_COMBINATIONS.md) §3.5 |
 | `tests/php/FacetedSearch/Adapter/MySQLTest.php` | `setUp()` épingle l'adapter sur `isCombinationFeatureFilteringEnabled() === false` ; tests combinaison adaptés à l'`EXISTS` | |
 | `tests/php/FacetedSearch/CombinationFeatureTest.php` | fichier ajouté par le fork | |
 | `docs/` | fichiers ajoutés par le fork | |
@@ -51,7 +51,7 @@ Référence complète du module : [crea_facetedsearchcustomisations/README.md](.
 
 Pourquoi `CombinationFeature.php` ne peut pas en sortir : la classe est consultée au fond de `MySQL::getFieldMapping()`, et `MySQL::getFilteredSearchAdapter()` fait `new self()` et non `new static()`. Une sous-classe d'adaptateur ne se propagerait donc pas aux adaptateurs imbriqués qui calculent les compteurs de facettes.
 
-⚠️ **`src/Adapter/MySQL.php` ne diverge d'upstream que par le correctif `EXISTS` (2026-10-28).** C'est le fichier le plus gros et le plus actif : aucune autre modification locale n'y est admise. Le moteur SQL du filtrage sur combinaison vient de la PR [#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292), déjà mergée upstream ; le correctif `EXISTS` est destiné à y être proposé à son tour — une fois repris upstream, `MySQL.php` redevient identique et cette exception disparaît.
+⚠️ **`src/Adapter/MySQL.php` ne diverge d'upstream que par le correctif `EXISTS` (2026-10-28).** C'est le fichier le plus gros et le plus actif : aucune autre modification locale n'y est admise. Le moteur SQL du filtrage sur combinaison vient de la PR [#1292](https://github.com/PrestaShop/ps_facetedsearch/pull/1292), déjà mergée upstream ; le correctif `EXISTS` y est proposé dans la PR [#1377](https://github.com/PrestaShop/ps_facetedsearch/pull/1377) — une fois mergé, `MySQL.php` redevient identique et cette exception disparaît.
 
 ## 3. Procédure
 
@@ -93,7 +93,7 @@ git rebase ps/dev
 
 En cas de conflit :
 
-- **sur `src/Adapter/MySQL.php`** → partir de la version upstream (`git checkout --theirs src/Adapter/MySQL.php`) **puis réappliquer le correctif `EXISTS`** (§2), sauf s'il a été repris upstream. Ne pas l'oublier : sans lui, une facette à trois filtres de caractéristique repasse de 0,2 s à plusieurs minutes. Vérifier ensuite §3.5. Tout autre écart local sur ce fichier enfreint le §2.
+- **sur `src/Adapter/MySQL.php`** → partir de la version upstream (`git checkout --theirs src/Adapter/MySQL.php`) **puis réappliquer le correctif `EXISTS`** (§2 ; les commits de la PR #1377 s'appliquent tels quels), sauf s'il a été repris upstream. Ne pas l'oublier : sans lui, une facette à trois filtres de caractéristique repasse de 0,2 s à plusieurs minutes. Vérifier ensuite §3.5. Tout autre écart local sur ce fichier enfreint le §2.
 - **sur `src/CombinationFeature.php`** → si upstream fait évoluer la classe, reprendre sa version et re-supprimer le `version_compare` + la résolution du feature flag.
 - **sur tout autre fichier de `src/`** → il ne devrait y en avoir aucun : prendre la version upstream. Si un conflit apparaît, c'est qu'une customisation a été réintroduite dans le fork au lieu du module.
 
